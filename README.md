@@ -1,4 +1,7 @@
 # EM4CI
+
+This respository contains code used to perform causal inference using a model learning approach. For more information on our methodology you can read the paper here: https://ics.uci.edu/~dechter/publications/r279.pdf
+
 In order to run the code for this paper, a license to use BayesFusion software package SMILE is required.
 EM4CI is written in C++. There is one source code file for the learning phase and one for inference. 
 They are named: 
