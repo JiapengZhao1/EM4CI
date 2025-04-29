@@ -8,13 +8,13 @@ numS=$2
 model=$1
 edCount=0
 
-mkdir $model
-mkdir $model"/"${numS}
-mkdir "learned_models/"$model
-mkdir "learned_models/"$model"/"${numS}
+mkdir -p $model
+mkdir -p $model"/"${numS}
+mkdir -p "learned_models/"$model
+mkdir -p "learned_models/"$model"/"${numS}
 BIC=100000000000
 
-begin=$EPOCHREALTIME
+begin=$(date +%s.%N)
 learnedModelIndex=0
 for ed in ${ED[@]}
 do
@@ -22,29 +22,29 @@ do
 	
 	
 	emModel="em_"${model}"_ED"${ed}
-	mkdir $model"/"${numS}"/"${emModel}
+	mkdir -p $model"/"${numS}"/"${emModel}
 	LL=()
 	time=()
 	count=0
 	maxLL=0
 	maxIndex=0
-	start=$EPOCHREALTIME
+	start=$(gdate +%s.%N)
 	for i in {0..9}
 	do
 		
-		./learn.out models_xdsl/${model}.xdsl models_xdsl/${emModel}_${i}.xdsl data/${numS}/${model}.csv ${numS}
+		 ./learn.out models_xdsl/${model}.xdsl models_xdsl/${emModel}_${i}.xdsl data/${numS}/${model}.csv ${numS}
 	
-		LL+=($( tail -1 ${model}/${numS}/${emModel}/LL.csv))
-		time+=($( tail -1 ${model}/${numS}/${emModel}/timesLearn.csv))
+		LL+=($( tail -1 learned_models/${model}/${numS}/${emModel}/LL.csv))
+		time+=($( tail -1 learned_models/${model}/${numS}/${emModel}/timesLearn.csv))
 #	count=$count+1
 	done
-	stop=$EPOCHREALTIME
+	stop=$(gdate +%s.%N)
 	elapsed=$(bc -l <<< "$stop - $start")
 	#maxLL=${LL[0]}
 	maxLL=-100000000000
 	maxIndex=0
 	count=0
-	$echo LL ${LL[0]}
+	echo LL ${LL[0]}
 	for i in ${LL[@]}; do
 		#echo $i
 		#echo $count
@@ -56,8 +56,8 @@ do
 		((count+=1))
 	done
 	echo "the max LL is " ${LL[$maxIndex]}" from run # " $maxIndex " for estimated domain size " $ed
-	echo ${LL[$maxIndex]} >> "${model}/${numS}/${emModel}/wrapper_LL.csv"
-	echo $elapsed >> "${model}/${numS}/${emModel}/wrapper_time.csv"
+	echo ${LL[$maxIndex]} >> "learned_models/${model}/${numS}/${emModel}/wrapper_LL.csv"
+	echo $elapsed >> "learned_models/${model}/${numS}/${emModel}/wrapper_time.csv"
 	currentBIC=$( ./bic.sh ${model} ${LL[$maxIndex]} $ed ${numS} )
 	echo "the BIC score for the max LL is  " $currentBIC " for estimated domain size " $ed
 	#echo ${currentBIC} >> "${model}/${numS}/${emModel}/wrapper_bic.csv"
@@ -69,14 +69,14 @@ do
 		echo -e "\n\n"
 		echo "BIC score has started to increase again the final BIC Score is " ${BIC} "corresponding to domain size" ${ED[$edCount-1]} 
 		echo "the learned model that produces this score is " ${learnedModelIndex} 
-		echo ${currentBIC} >> "${model}/${numS}/wrapper_finalbic.csv"
-		echo ${learnedModelIndex} >> "${model}/${numS}/wrapper_learnedModelNum.csv"
-		echo ${ED[$edCount-1]} >> "${model}/${numS}/wrapper_domain.csv"
-		end=$EPOCHREALTIME
+		echo ${currentBIC} >> "learned_models/${model}/${numS}/wrapper_finalbic.csv"
+		echo ${learnedModelIndex} >> "learned_models/${model}/${numS}/wrapper_learnedModelNum.csv"
+		echo ${ED[$edCount-1]} >> "learned_models/${model}/${numS}/wrapper_domain.csv"
+		end=$(gdate +%s.%N)
 		total_time=$(bc -l <<< "$stop - $start")
 		echo "Total elapsed time is " ${total_time} 
-		echo $total_time >> "${model}/${numS}/wrapper_time.csv"
-		exit 1
+		echo $total_time >> "learned_models/${model}/${numS}/wrapper_time.csv"
+		exit 0
 	fi
 
 	((edCount+=1))
