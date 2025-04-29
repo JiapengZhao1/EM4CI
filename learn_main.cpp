@@ -12,6 +12,8 @@
 #include <fstream>
 #include <ctime>
 #include <chrono>
+#include <filesystem> // Add this include at the top of the file
+
 //using namespace std;
 
 static int CreateCptNode(DSL_network &net, const char *id, const char *name, 
@@ -72,22 +74,24 @@ int j=0;
 dot = modelFile.find('.');
 slash = modelFile.rfind('/');
 basename=modelFile.substr(slash+1,dot-(slash+1));
-outPath = basename + "/"+ std::to_string(numPts)+"/";
+outPath = "learned_models/" + basename + "/"+ std::to_string(numPts)+"/";
 dot = emFile.find('.');
 slash = emFile.rfind('/');
-learnedFile="learned_models/"+basename + "/" +std::to_string(numPts)+"/"+emFile.substr(slash+1,dot-(slash+1))+".xdsl";
-basename="";
-basename=emFile.substr(slash+1,dot-(slash+1)-2);
+
+// Ensure the output directory exists
+std::filesystem::create_directories("learned_models/" + basename + "/" + std::to_string(numPts));
+
+learnedFile = "learned_models/" + basename + "/" + std::to_string(numPts) + "/" +
+              emFile.substr(slash + 1, dot - (slash + 1)) + ".xdsl";
+
+basename = emFile.substr(slash + 1, dot - (slash + 1) - 2);
 outPath += basename + "/";
+std::filesystem::create_directories(outPath);  // Ensure the additional subdirectory is created
 std::cout <<"learned file " << learnedFile << std::endl;
 std::cout << "outpath " << outPath << std::endl;
 outTlearn.open(outPath+"timesLearn.csv", std::ios_base::app);
 outLL.open(outPath+"LL.csv", std::ios_base::app);
 //outSeed.open(outPath+"seed.csv", std::ios_base::app);
-
-
-
-
 
 
 int res = net.ReadFile(modelFile.c_str());
@@ -207,3 +211,4 @@ static void PrintPosteriors(DSL_network &net, int handle)
 		}		
 	}
 }
+
