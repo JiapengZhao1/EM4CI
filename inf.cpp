@@ -13,6 +13,7 @@
 #include <ctime>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 //using namespace std;
 
 static void PrintMatrix(DSL_network net, const DSL_Dmatrix &mtx, const DSL_idArray &outcomes, const DSL_intArray &parents);
@@ -23,6 +24,7 @@ std::string PrintVectorInfo(DSL_network &net, std::vector<std::pair<int,int > > 
 
 static void PrintPosteriors(DSL_network &net, int handle);
 static void PrintNodeInfo(DSL_network &net, int nodeHandle);
+double ComputeExpectedValue(const DSL_Dmatrix &beliefs, const DSL_idArray &outcomes);
 int main(int argc, char *argv[]){
 
 DSL_network net;
@@ -73,26 +75,31 @@ else{
         numDo = argc -5;
 	std::cout << "num of do vars " << numDo << std::endl;
 }
-std::string doArray[numDo];
-int argvIn=4;
+std::string doArray[numDo]; // used to store the do variables, such as X1, X2
+int argvIn=4; //do variables are started from the 4th argument input
 int j=0;
 for( j = 0; j < numDo; j++){
         std::cout << "do vars " <<  argv[argvIn + j] << std::endl;
-        doArray[j]=argv[argvIn+j];
+        doArray[j]=argv[argvIn+j]; //read the do variables from the command line to the doArray, such that doArray[0] = X1, doArray[1] = X2
         std::cout << "in array " << doArray[j] << std::endl;
 }
 argvIn = argvIn+j;
 std::cout << "index " << argvIn << std::endl;
-numPts = std::stoi(argv[argvIn]);
+numPts = std::stoi(argv[argvIn]); //the number of points to be sampled is the last argument from the command line
 
 
 dot = modelFile.find('.');
 slash = modelFile.rfind('/');
-basename=modelFile.substr(slash+1,dot-(slash+1));
-outPath = basename + "/"+ std::to_string(numPts)+"/";
+basename = modelFile.substr(slash + 1, dot - (slash + 1));
+outPath = basename + "/" + std::to_string(numPts) + "/";
 std::cout << "outpath " << outPath << std::endl;
-outTlearn.open(outPath+"timesInf.csv", std::ios_base::app);
-outS.open(outPath+"err.csv", std::ios_base::app);
+
+// Create the output directory if it doesn't exist
+std::filesystem::create_directories(outPath);
+std::cout << "Created output directory: " << outPath << std::endl;
+
+outTlearn.open(outPath + "timesInf.csv", std::ios_base::app);
+outS.open(outPath + "err.csv", std::ios_base::app);
 
 
 
@@ -100,14 +107,14 @@ outS.open(outPath+"err.csv", std::ios_base::app);
 
 
 //int endoIds[numEndo]={0,0,0,0,0,0,0,0,0};
-int res = net.ReadFile(modelFile.c_str());
+int res = net.ReadFile(modelFile.c_str()); //net is the true model
 std::cout << "the model file is : " << modelFile.c_str() << std::endl;
 if (DSL_OKAY != res)
 {
 	return res;
 }
 
-res = learnedModel.ReadFile(learnedFile.c_str());
+res = learnedModel.ReadFile(learnedFile.c_str()); //learnedModel is the learned model
 std::cout << "the learned  model file is : " << learnedFile.c_str() << std::endl;
 if (DSL_OKAY != res)
 {
@@ -116,7 +123,7 @@ if (DSL_OKAY != res)
 
 
 doX = DSL_network(net);
-int handle = doX.FindNode(queryVar.c_str());
+int handle = doX.FindNode(queryVar.c_str()); //queryVar is Y 
 
 
 
@@ -132,7 +139,7 @@ else
 DSL_node* doNode = doX.GetNode(doArray[0].c_str());
 int doHandle = doX.FindNode(doArray[0].c_str());
 const DSL_idArray& doOut = *doNode->Def()->GetOutcomeIds();
-doDomain= doOut.GetSize();
+doDomain= doOut.GetSize(); //do varibale domain size, domain siez of X1
 int weightedSize=doDomain;
 if (doHandle >= 0)
 {
@@ -142,6 +149,8 @@ else
 {
 	std::cout<<"There's no node with ID=myNodeId\n";
 }
+
+// set a varibale the be target to make sure that this vartibale will always be updated
 std::cout << "setting up do variables " << std::endl;
 doX.SetTarget(doHandle, true );
 if(numDo>1)
@@ -158,7 +167,10 @@ if(numDo>1)
 }
 
 doX.UpdateBeliefs();
-std::cout << "weightedsize" << weightedSize << std::endl;
+
+//calculate the do varibale marginal to compute the weighted error in the end. 
+
+std::cout << "weightedsize" << weightedSize << std::endl; //equal to domain size ?
 std::cout <<"setting up to compute marginal of do vars" << std::endl;
 double doMarginal[weightedSize];
 if (numDo>=1){
@@ -216,52 +228,57 @@ else
                 }
 	}
 }
+
+//
+
 //map the handle of a node with the appropiate docpt
 std::vector<std::pair<int,std::vector<double> > > doVec;
 //map do handle to its domain size
 std::vector<std::pair<int,int > > domainVec;
 //char set[doDomain];
 for (int i = 0; i < numDo; i ++){
-        DSL_node* doNode = doX.GetNode(doArray[i].c_str());
-        doHandle = doX.FindNode(doArray[i].c_str());
-        const DSL_intArray &parents = doX.GetParents(doHandle);
-        const DSL_idArray& doOut = *doNode->Def()->GetOutcomeIds();
-        doDomain= doOut.GetSize();
-        std::cout << "do node handle" << doHandle << std::endl;
-        std::cout << "do node domain" << doDomain << std::endl;
-        doDim*=doDomain;
-	std::vector<double> docpt(doDomain, float(1.0/doDomain));
+	DSL_node* doNode = doX.GetNode(doArray[i].c_str());
+	doHandle = doX.FindNode(doArray[i].c_str());
+	const DSL_intArray &parents = doX.GetParents(doHandle);
+	const DSL_idArray& doOut = *doNode->Def()->GetOutcomeIds();
+	doDomain= doOut.GetSize();
+	std::cout << "do node handle" << doHandle << std::endl;
+	std::cout << "do node domain" << doDomain << std::endl;
+	doDim*=doDomain; // doDim is the product of all do variable domain sizes
+	std::vector<double> docpt(doDomain, float(1.0/doDomain)); // for doDmomain = 2, 1/2=0.5 docpt = {0.5, 0.5}, uniform distribution
         //docpt[doVal]=1;
         //for ( int i = 0; i < doDomain; i++){
 		//docpt[i]=1;
 	//	docpt[i] = float(1.0/doDomain);
 	//}
-	domainVec.emplace_back(doHandle, doDomain);
-	doVec.emplace_back(doHandle, docpt);
-        std::cout << "performing intervention in true model" << std::endl;
-        while(parents.GetSize() > 0){
-                std::cout << " parents handle " << parents[0] << " " <<doX.GetNode(parents[0])->GetName() <<  "do handle " << doHandle <<"var name " << doNode->GetName() << std::endl;
-                res = doX.RemoveArc(parents[0],doHandle);
-                if (DSL_OKAY != res)
-                {
-                        return res;
-                }
-        }
+	domainVec.emplace_back(doHandle, doDomain); //pair of do handle and its domain size
+	doVec.emplace_back(doHandle, docpt); //pair of do handle and its cpt, cpt
+
+
+	std::cout << "performing intervention in true model" << std::endl;
+	while(parents.GetSize() > 0){
+			std::cout << " parents handle " << parents[0] << " " <<doX.GetNode(parents[0])->GetName() <<  "do handle " << doHandle <<"var name " << doNode->GetName() << std::endl;
+			res = doX.RemoveArc(parents[0],doHandle);
+			if (DSL_OKAY != res)
+			{
+					return res;
+			}
+	}
 }
 
 
 
 
 
-
+//since the incomeing arcs are removed, we need to set a distribution, such as uniform distribution
 int res1;
-std::cout << "replacing cpts for all do variables " << std:: endl;
+std::cout << "replacing cpts for all do variables " << std:: endl; 
 //res = doX.GetNode("V0")->Def()->SetDefinition(doXCPT);
 //dovec is assigned in above code as true model so should be the same
 for( int i =0; i < numDo; i ++){
 	std::cout << " i " << numDo << std::endl; 
 	std::cout << "replace cpt of varibale " << doVec[i].first << std::endl;
-        res1 = doX.GetNode(doVec[i].first)->Def()->SetDefinition({begin(doVec[i].second), end(doVec[i].second)});
+    res1 = doX.GetNode(doVec[i].first)->Def()->SetDefinition({begin(doVec[i].second), end(doVec[i].second)});
 	
 	doX.SetTarget(doVec[i].first, true );
 }
@@ -277,14 +294,14 @@ if (DSL_OKAY != res1     )
 doX.ClearAllTargets();
 std::cout << "calculating trueValue  in the mutilated true model " << std::endl;
 
-DSL_node* sn = doX.GetNode(queryVar.c_str());
+DSL_node* sn = doX.GetNode(queryVar.c_str()); //after intervention, the query variable Y can be calculated
 const DSL_Dmatrix& beliefs = *sn->Val()->GetMatrix();
 const DSL_idArray& outcomes = *sn->Def()->GetOutcomeIds();
 const DSL_nodeVal* values = sn->Val();
 
-domain= outcomes.GetSize();
+domain= outcomes.GetSize(); //domain size of the query variable Y
 std::cout << "domain of query var" << domain << std::endl;
-int solnSize = domain * doDim;
+int solnSize = domain * doDim; //domain of query variable * domain of all the do variables multiplied
 std::cout << "beliefs dim  " << beliefs.GetSize() << std::endl;
 std::cout << "solution array size " << solnSize << std::endl;
 
@@ -313,6 +330,18 @@ for (int i = 0; i < doDim; ++i) {
        		current[j] = 0;
         }
 }
+//If there are 2 do variables (numDo = 2) with domain sizes 2 and 3 (doDim = 2 * 3 = 6):
+/*
+domainVec = {{handle_X1, 2}, {handle_X2, 3}}
+Generated combinations:
+{0, 0}
+{0, 1}
+{0, 2}
+{1, 0}
+{1, 1}
+{1, 2}
+*/
+
 //DEBUG
 /*
 for(int i =0; i < combinations.size(); i++){
@@ -328,6 +357,8 @@ for ( int i = 0; i < numDo; i++){
 		std::cout << "i,j" << i<< " " << j << std::endl;
 	}
 }*/
+
+
 std::cout << " setting evidence " << std::endl;
 int solnIndex=0;
 for( int i =0; i < combinations.size(); i++){
@@ -344,7 +375,7 @@ for( int i =0; i < combinations.size(); i++){
 	
 	//std::cout << "updating beliefs " << std::endl;
 	doX.UpdateBeliefs();
-	for (int k = 0; k < domain; k++) {
+	for (int k = 0; k < domain; k++) { //domain size of query variable
 		if(print){
 			printf("P(%s = %s ", sn->GetId(), (outcomes)[k]);
 			std::cout << "| " << PrintVectorInfo(doX, domainVec,combinations[i]) << " ) = " ;
@@ -352,7 +383,8 @@ for( int i =0; i < combinations.size(); i++){
 		}
 		//	evNode->GetId(), evOutcomes[k], beliefs[i]);
 		//std::cout << "print index " << d*domain*numOut+ k*numOut + i << std::endl;
-		exactSoln[solnIndex] = beliefs[k];
+		exactSoln[solnIndex] = beliefs[k]; 
+		//The beliefs variable (*sn->Val()->GetMatrix()) is dynamically updated after calling doX.UpdateBeliefs().
 		solnIndex++;
 	}
 
@@ -382,8 +414,47 @@ for ( int d =0; d < numDo; d++){
 }
 */
 
+// Calculate True ATE
+double trueATE = 0.0;
+double trueE_Y_x1 = 0.0;
+double trueE_Y_x2 = 0.0;
+
+// Assuming doArray[0] is the treatment variable (X)
+DSL_node* treatmentNode = doX.GetNode(doArray[0].c_str());
+const DSL_idArray& treatmentOutcomes = *treatmentNode->Def()->GetOutcomeIds();
+int treatmentDomain = treatmentOutcomes.GetSize();
+
+// Get the query variable node
+DSL_node* queryNode = doX.GetNode(queryVar.c_str());
+const DSL_idArray& queryOutcomes = *queryNode->Def()->GetOutcomeIds();
+const DSL_Dmatrix& queryBeliefs = *queryNode->Val()->GetMatrix();
+
+// Perform interventions for X=x1 and X=x2
+for (int x = 0; x < treatmentDomain; x++) {
+    // Set evidence for X=x
+    treatmentNode->Val()->SetEvidence(x);
+
+    // Update beliefs
+    doX.UpdateBeliefs();
+
+    // Compute the expected value of Y
+    double expectedY = ComputeExpectedValue(queryBeliefs, queryOutcomes);
+    std::cout << "True E[Y | do(X=" << treatmentOutcomes[x] << ")] = " << expectedY << std::endl;
+
+    // Store the expected values for x1 and x2
+    if (x == 0) {
+        trueE_Y_x1 = expectedY;
+    } else if (x == 1) {
+        trueE_Y_x2 = expectedY;
+    }
+}
+
+trueATE = trueE_Y_x1 - trueE_Y_x2;
+std::cout << "True ATE = " << trueATE << std::endl;
 
 
+
+///////
 
 doX2 = DSL_network(learnedModel);
 
@@ -514,10 +585,6 @@ for ( int d =0; d < numDo; d++){
 
 */
 
-auto endTime = std::chrono::high_resolution_clock::now();
-std::chrono::duration<double> duration = (endTime - startTime);
-std::cout << "time elapsed  for inference " << duration.count() << std::endl;
-
 //double estExpVal=0;
 double sum=0;
 for (int i = 0; i < solnSize; i++)
@@ -541,7 +608,56 @@ for (int i=0; i < solnSize; i++){
 
 std::cout << "The weighted error is " << weightedErr << std::endl; 
 
+
+
+// Calculate Estimated ATE
+double estimatedATE = 0.0;
+double estimatedE_Y_x1 = 0.0;
+double estimatedE_Y_x2 = 0.0;
+
+// Assuming doArray[0] is the treatment variable (X)
+DSL_node* estTreatmentNode = doX2.GetNode(doArray[0].c_str());
+const DSL_idArray& estTreatmentOutcomes = *estTreatmentNode->Def()->GetOutcomeIds();
+int estTreatmentDomain = estTreatmentOutcomes.GetSize();
+
+// Get the query variable node
+DSL_node* estQueryNode = doX2.GetNode(queryVar.c_str());
+const DSL_idArray& estQueryOutcomes = *estQueryNode->Def()->GetOutcomeIds();
+const DSL_Dmatrix& estQueryBeliefs = *estQueryNode->Val()->GetMatrix();
+
+// Perform interventions for X=x1 and X=x2
+for (int x = 0; x < estTreatmentDomain; x++) {
+    // Set evidence for X=x
+    estTreatmentNode->Val()->SetEvidence(x);
+
+    // Update beliefs
+    doX2.UpdateBeliefs();
+
+    // Compute the expected value of Y
+    double expectedY = ComputeExpectedValue(estQueryBeliefs, estQueryOutcomes);
+    std::cout << "Estimated E[Y | do(X=" << estTreatmentOutcomes[x] << ")] = " << expectedY << std::endl;
+
+    // Store the expected values for x1 and x2
+    if (x == 0) {
+        estimatedE_Y_x1 = expectedY;
+    } else if (x == 1) {
+        estimatedE_Y_x2 = expectedY;
+    }
+}
+
+estimatedATE = estimatedE_Y_x1 - estimatedE_Y_x2;
+std::cout << "Estimated ATE = " << estimatedATE << std::endl;
+
+double errorATE = std::fabs(trueATE - estimatedATE);
+std::cout << "Error in ATE = |True ATE - Estimated ATE| = " << errorATE << std::endl;
+
+
 outS << avgErr << std::endl;
+
+auto endTime = std::chrono::high_resolution_clock::now();
+std::chrono::duration<double> duration = (endTime - startTime);
+std::cout << "time elapsed  for inference " << duration.count() << std::endl;
+
 outTinf << duration.count() << std::endl;
 
 
@@ -689,4 +805,12 @@ std::string PrintVectorInfo(DSL_network &net, std::vector<std::pair<int,int > > 
 
 	}
 	return outString;
+}
+
+double ComputeExpectedValue(const DSL_Dmatrix &beliefs, const DSL_idArray &outcomes) {
+    double expectedValue = 0.0;
+    for (int i = 0; i < beliefs.GetSize(); i++) {
+        expectedValue += i * beliefs[i]; // Assuming outcomes are indexed as 0, 1, 2, ...
+    }
+    return expectedValue;
 }
